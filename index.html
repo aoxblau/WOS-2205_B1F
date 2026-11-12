@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ホワサバ 工程ステーション管理ツール</title>
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --border: #334155;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+      --discord: #5865f2;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); padding: 20px; line-height: 1.5; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { text-align: center; color: var(--accent); margin-bottom: 20px; font-size: 1.8rem; }
+    
+    .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    .panel h2 { font-size: 1.2rem; margin-bottom: 15px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    
+    .form-group { margin-bottom: 15px; }
+    label { display: block; font-size: 0.9rem; color: var(--text-sub); margin-bottom: 5px; }
+    input, select, textarea { width: 100%; padding: 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; color: var(--text-main); font-size: 1rem; }
+    
+    .time-inputs { display: flex; gap: 10px; align-items: center; }
+    .time-inputs div { flex: 1; text-align: center; font-size: 0.8rem; color: var(--text-sub); }
+    .time-inputs input { text-align: center; font-weight: bold; }
+
+    .btn-group { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    button { background: var(--accent); color: #000; border: none; padding: 10px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    button:hover { background: var(--accent-hover); color: #fff; }
+    .btn-secondary { background: #475569; color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-discord { background: var(--discord); color: #fff; }
+    .btn-discord:hover { background: #4752c4; }
+    .btn-sm { padding: 6px 10px; font-size: 0.85rem; }
+    
+    .station-list { display: grid; gap: 15px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+    .station-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 15px; position: relative; }
+    .station-card.protected { border-left: 4px solid var(--warning); }
+    .station-card.vulnerable { border-left: 4px solid var(--danger); }
+    
+    .card-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; }
+    .badge { display: inline-block; background: #0284c7; color: #fff; font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; margin-bottom: 10px; }
+    .timer { font-size: 1.2rem; font-weight: bold; color: var(--accent); margin: 10px 0; background: #0f172a; padding: 8px; border-radius: 6px; text-align: center; }
+    .timer.vulnerable { color: var(--danger); animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity: 0.6; } }
+    
+    .card-actions { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>雪原の工程ステーション管理ツール</h1>
+
+  <!-- Discord Webhook 設定 -->
+  <div class="panel">
+    <h2>Discord Webhook 設定</h2>
+    <div class="form-group">
+      <label>Discord Webhook URL</label>
+      <input type="text" id="webhook-url" value="https://discord.com/api/webhooks/1570242492836610111/c1JC9vKXsiZUOlYJ2QkaONi4iB6x4N6RhY3b90bSjn3BFiCdc-OIxhe-ZQHNai3kLZuV" onchange="saveWebhook()">
+    </div>
+  </div>
+
+  <!-- 登録・編集パネル -->
+  <div class="panel">
+    <h2 id="form-title">ステーション追加</h2>
+    <form id="station-form">
+      <input type="hidden" id="edit-id">
+      
+      <div class="form-group">
+        <label>ステーション種類 (プリセット選択)</label>
+        <select id="preset-select" onchange="applyPreset()">
+          <option value="">-- 手動入力または選択 --</option>
+          <option value="Lv1 建築工程ステーション|建築速度 ＋5%">Lv1 建築工程ステーション (建築速度 +5%)[cite: 1]</option>
+          <option value="Lv1 採集工程ステーション|採集速度 ＋5%">Lv1 採集工程ステーション (採集速度 +5%)[cite: 1]</option>
+          <option value="Lv1 生産工程ステーション|資源生産速度 ＋5%">Lv1 生産工程ステーション (資源生産速度 +5%)[cite: 1]</option>
+          <option value="Lv1 技術工程ステーション|研究速度 ＋5%">Lv1 技術工程ステーション (研究速度 +5%)[cite: 1]</option>
+          <option value="Lv2 武器工程ステーション|部隊攻撃力 ＋5%">Lv2 武器工程ステーション (部隊攻撃力 +5%)[cite: 1]</option>
+          <option value="Lv2 訓練工程ステーション|訓練速度 ＋5%">Lv2 訓練工程ステーション (訓練速度 +5%)[cite: 1]</option>
+          <option value="Lv2 防御工程ステーション|部隊防御力 ＋5%">Lv2 防御工程ステーション (部隊防御力 +5%)[cite: 1]</option>
+          <option value="Lv3 建築工程ステーション|建築速度 ＋8%">Lv3 建築工程ステーション (建築速度 +8%)[cite: 1]</option>
+          <option value="Lv3 技術工程ステーション|研究速度 ＋8%">Lv3 技術工程ステーション (研究速度 +8%)[cite: 1]</option>
+          <option value="Lv3 遠征工程ステーション|部隊行軍速度 ＋15%">Lv3 遠征工程ステーション (部隊行軍速度 +15%)[cite: 1]</option>
+          <option value="Lv4 武器工程ステーション|部隊攻撃力 ＋8%">Lv4 武器工程ステーション (部隊攻撃力 +8%)[cite: 1]</option>
+          <option value="Lv4 防御工程ステーション|部隊防御力 ＋8%">Lv4 防御工程ステーション (部隊防御力 +8%)[cite: 1]</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>名称 / 座標</label>
+        <input type="text" id="name" placeholder="例: Lv3 技術工程ステーション X:123 Y:456" required>
+      </div>
+
+      <div class="form-group">
+        <label>強化効果 (バフ)</label>
+        <input type="text" id="buff" placeholder="例: 研究速度 ＋8%">
+      </div>
+
+      <div class="form-group">
+        <label>残り保護時間 (ゲーム画面の「Xd HH:MM:SS」に合わせて入力)</label>
+        <div class="time-inputs">
+          <div>
+            <input type="number" id="input-days" min="0" value="0">日
+          </div>
+          <div>
+            <input type="number" id="input-hours" min="0" max="23" value="0">時間
+          </div>
+          <div>
+            <input type="number" id="input-mins" min="0" max="59" value="0">分
+          </div>
+        </div>
+        <div class="btn-group" style="margin-top: 8px;">
+          <button type="button" class="btn-sm btn-secondary" onclick="addTime(0, 2, 0)">+2時間</button>
+          <button type="button" class="btn-sm btn-secondary" onclick="addTime(0, 8, 0)">+8時間</button>
+          <button type="button" class="btn-sm btn-secondary" onclick="addTime(1, 0, 0)">+1日</button>
+          <button type="button" class="btn-sm btn-secondary" onclick="addTime(2, 0, 0)">+2日</button>
+          <button type="button" class="btn-sm btn-secondary" onclick="addTime(3, 0, 0)">+3日</button>
+        </div>
+      </div>
+
+      <div class="btn-group" style="margin-top: 15px;">
+        <button type="submit" id="save-btn">保存する</button>
+        <button type="button" class="btn-secondary" onclick="resetForm()">キャンセル</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ステーション一覧 -->
+  <div class="panel">
+    <h2>登録済みステーション一覧</h2>
+    <div id="station-list" class="station-list"></div>
+  </div>
+</div>
+
+<script>
+  let stations = JSON.parse(localStorage.getItem('wos_stations_v2') || '[]');
+  
+  if (!localStorage.getItem('wos_webhook_url')) {
+    localStorage.setItem('wos_webhook_url', document.getElementById('webhook-url').value);
+  } else {
+    document.getElementById('webhook-url').value = localStorage.getItem('wos_webhook_url');
+  }
+
+  function saveWebhook() {
+    const url = document.getElementById('webhook-url').value.trim();
+    localStorage.setItem('wos_webhook_url', url);
+  }
+
+  function applyPreset() {
+    const val = document.getElementById('preset-select').value;
+    if (val) {
+      const [name, buff] = val.split('|');
+      document.getElementById('name').value = name;
+      document.getElementById('buff').value = buff;
+    }
+  }
+
+  function addTime(d, h, m) {
+    document.getElementById('input-days').value = parseInt(document.getElementById('input-days').value || 0) + d;
+    document.getElementById('input-hours').value = parseInt(document.getElementById('input-hours').value || 0) + h;
+    document.getElementById('input-mins').value = parseInt(document.getElementById('input-mins').value || 0) + m;
+  }
+
+  document.getElementById('station-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-id').value || Date.now().toString();
+    const name = document.getElementById('name').value;
+    const buff = document.getElementById('buff').value;
+    
+    const days = parseInt(document.getElementById('input-days').value || 0);
+    const hours = parseInt(document.getElementById('input-hours').value || 0);
+    const mins = parseInt(document.getElementById('input-mins').value || 0);
+
+    const totalMs = (days * 24 * 3600 + hours * 3600 + mins * 60) * 1000;
+    const targetTime = Date.now() + totalMs;
+
+    const idx = stations.findIndex(s => s.id === id);
+    const item = { id, name, buff, targetTime };
+
+    if (idx >= 0) stations[idx] = item;
+    else stations.push(item);
+
+    localStorage.setItem('wos_stations_v2', JSON.stringify(stations));
+    resetForm();
+    render();
+  });
+
+  function resetForm() {
+    document.getElementById('edit-id').value = '';
+    document.getElementById('name').value = '';
+    document.getElementById('buff').value = '';
+    document.getElementById('input-days').value = '0';
+    document.getElementById('input-hours').value = '0';
+    document.getElementById('input-mins').value = '0';
+    document.getElementById('preset-select').value = '';
+    document.getElementById('form-title').innerText = 'ステーション追加';
+    document.getElementById('save-btn').innerText = '保存する';
+  }
+
+  function editStation(id) {
+    const s = stations.find(x => x.id === id);
+    if (!s) return;
+    document.getElementById('edit-id').value = s.id;
+    document.getElementById('name').value = s.name;
+    document.getElementById('buff').value = s.buff;
+
+    const diff = s.targetTime - Date.now();
+    if (diff > 0) {
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      document.getElementById('input-days').value = days;
+      document.getElementById('input-hours').value = hours;
+      document.getElementById('input-mins').value = mins;
+    } else {
+      document.getElementById('input-days').value = 0;
+      document.getElementById('input-hours').value = 0;
+      document.getElementById('input-mins').value = 0;
+    }
+
+    document.getElementById('form-title').innerText = 'ステーション編集';
+    document.getElementById('save-btn').innerText = '更新する';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function deleteStation(id) {
+    if (confirm('削除しますか？')) {
+      stations = stations.filter(s => s.id !== id);
+      localStorage.setItem('wos_stations_v2', JSON.stringify(stations));
+      render();
+    }
+  }
+
+  function copyDiscord(id) {
+    const s = stations.find(x => x.id === id);
+    if (!s) return;
+    const targetDate = new Date(s.targetTime);
+    const dateStr = `${targetDate.getMonth() + 1}月${targetDate.getDate()}日 ${String(targetDate.getHours()).padStart(2, '0')}:${String(targetDate.getMinutes()).padStart(2, '0')}`;
+    
+    const diff = s.targetTime - Date.now();
+    let timeText = '保護解除中！';
+    if (diff > 0) {
+      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      timeText = `${d}日 ${h}時間 ${m}分`;
+    }
+    const text = `【ステーション情報】\n■ ${s.name}\n■ バフ: ${s.buff || 'なし'}\n■ 保護解除予定: ${dateStr} 頃 (${timeText})`;
+    navigator.clipboard.writeText(text).then(() => alert('Discord用にコピーしました！'));
+  }
+
+  async function sendWebhook(id) {
+    const webhookUrl = localStorage.getItem('wos_webhook_url');
+    if (!webhookUrl) {
+      alert('Discord Webhook URLが設定されていません。');
+      return;
+    }
+
+    const s = stations.find(x => x.id === id);
+    if (!s) return;
+
+    const targetDate = new Date(s.targetTime);
+    const dateStr = `${targetDate.getMonth() + 1}月${targetDate.getDate()}日 ${String(targetDate.getHours()).padStart(2, '0')}:${String(targetDate.getMinutes()).padStart(2, '0')}`;
+
+    const diff = s.targetTime - Date.now();
+    let statusText = '';
+
+    if (diff <= 0) {
+      statusText = '⚠️ **保護解除中！争奪可能**';
+    } else {
+      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      statusText = `📅 **保護解除予定:** ${dateStr} 頃\n⏳ **残り時間目安:** ${d}日 ${h}時間 ${m}分`;
+    }
+
+    const payload = {
+      content: "📢 **【工程ステーション状況共有】**",
+      embeds: [{
+        title: s.name,
+        color: diff <= 0 ? 15548997 : 3788280,
+        fields: [
+          { name: "バフ効果", value: s.buff || "なし", inline: true },
+          { name: "状態", value: statusText, inline: false }
+        ],
+        footer: { text: "雪原の工程ステーション管理ツール" }
+      }]
+    };
+
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        alert('Discordへ通知を送信しました！');
+      } else {
+        alert('送信に失敗しました。Webhook URLをご確認ください。');
+      }
+    } catch (err) {
+      alert('エラーが発生しました: ' + err.message);
+    }
+  }
+
+  function render() {
+    const container = document.getElementById('station-list');
+    if (stations.length === 0) {
+      container.innerHTML = '<p style="color: var(--text-sub);">登録されているステーションはありません。</p>';
+      return;
+    }
+
+    const now = Date.now();
+
+    container.innerHTML = stations.map(s => {
+      const diff = s.targetTime - now;
+
+      let statusClass = 'protected';
+      let timerText = '';
+
+      if (diff <= 0) {
+        statusClass = 'vulnerable';
+        timerText = '保護解除中！争奪可能';
+      } else {
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const sec = Math.floor((diff % (1000 * 60)) / 1000);
+        timerText = `残り: ${d > 0 ? d + '日 ' : ''}${h}時間 ${m}分 ${sec}秒`;
+      }
+
+      return `
+        <div class="station-card ${statusClass}">
+          <div class="card-title">${s.name}</div>
+          ${s.buff ? `<span class="badge">${s.buff}</span>` : ''}
+          <div class="timer ${diff <= 0 ? 'vulnerable' : ''}">${timerText}</div>
+          <div class="card-actions">
+            <button class="btn-sm btn-discord" onclick="sendWebhook('${s.id}')">Discordに送信</button>
+            <button class="btn-sm btn-secondary" onclick="copyDiscord('${s.id}')">テキストコピー</button>
+            <button class="btn-sm btn-secondary" onclick="editStation('${s.id}')">編集</button>
+            <button class="btn-sm btn-danger" onclick="deleteStation('${s.id}')">削除</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  setInterval(render, 1000);
+  render();
+</script>
+</body>
+</html>
